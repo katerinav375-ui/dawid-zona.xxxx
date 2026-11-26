@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14532d">
+  <title>Udostępnij lokalizację</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+      font: 16px/1.5 system-ui, sans-serif; background: #f3f6f4; color: #17231b; }
+    main { width: min(100%, 440px); background: white; padding: 28px; border-radius: 18px;
+      box-shadow: 0 8px 32px #102b1915; }
+    h1 { margin: 0 0 10px; font-size: 1.55rem; }
+    p { color: #435148; }
+    button { width: 100%; border: 0; border-radius: 12px; padding: 15px 18px;
+      background: #166534; color: white; font-size: 1rem; font-weight: 650; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .note { font-size: .88rem; background: #f1f5f2; border-radius: 10px; padding: 12px; }
+    #status { min-height: 3em; margin-top: 16px; font-weight: 600; }
+    a { color: #166534; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Udostępnij swoją lokalizację</h1>
+  <p>Po naciśnięciu przycisku przeglądarka poprosi Cię o zgodę na udostępnienie lokalizacji GPS.</p>
+  <p class="note">Jeśli wyrazisz zgodę, współrzędne GPS oraz szacowana dokładność pomiaru zostaną przesłane e-mailem do administratora tej strony. Nie prosimy o imię, nazwisko ani numer telefonu. Lokalizacja nie jest pobierana bez Twojej zgody.</p>
+  <button id="share" type="button">Udostępnij moją lokalizację</button>
+  <div id="status" role="status" aria-live="polite"></div>
+  <p class="note">Aby uzyskać dokładniejszy pomiar, włącz lokalizację w telefonie i zezwól przeglądarce na dostęp do niej. Strona wymaga połączenia HTTPS.</p>
+</main>
+
+<!-- Formularz wysyła dane do Google Apps Script bez ujawniania adresu e-mail na stronie. -->
+<iframe name="sendframe" title="Wysyłanie lokalizacji" hidden></iframe>
+<form id="sendform" method="post" target="sendframe">
+  <input type="hidden" name="latitude" id="latitude">
+  <input type="hidden" name="longitude" id="longitude">
+  <input type="hidden" name="accuracy" id="accuracy">
+  <input type="hidden" name="timestamp" id="timestamp">
+</form>
+
+<script>
+  // Wklej tutaj adres wdrożonej aplikacji internetowej Google Apps Script.
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxvWT5h02H_KuoIXW2JEw7AVxOMKg7z6gyFJAevCFVo4Kiq-MXSs2x9YASCLNVu33PY/exec";
+
+  const button = document.getElementById("share");
+  const status = document.getElementById("status");
+  const form = document.getElementById("sendform");
+
+  button.addEventListener("click", () => {
+    if (!("geolocation" in navigator)) {
+      status.textContent = "Ta przeglądarka nie obsługuje geolokalizacji.";
+      return;
+    }
+    if (SCRIPT_URL.startsWith("WKLEJ_")) {
+      status.textContent = "Strona nie została jeszcze skonfigurowana przez administratora.";
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Oczekiwanie na zgodę i odczyt GPS…";
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        document.getElementById("latitude").value = position.coords.latitude;
+        document.getElementById("longitude").value = position.coords.longitude;
+        document.getElementById("accuracy").value = Math.round(position.coords.accuracy);
+        document.getElementById("timestamp").value = new Date(position.timestamp).toISOString();
+        form.action = SCRIPT_URL;
+        form.submit();
+        status.textContent = "Formularz z lokalizacją został wysłany. Możesz zamknąć tę stronę.";
+        button.disabled = false;
+      },
+      error => {
+        const messages = {
+          1: "Nie udzielono zgody na lokalizację. Bez zgody nie możemy jej otrzymać.",
+          2: "Telefon nie może teraz ustalić lokalizacji. Spróbuj ponownie na zewnątrz.",
+          3: "Upłynął czas oczekiwania na GPS. Spróbuj ponownie."
+        };
+        status.textContent = messages[error.code] || "Nie udało się pobrać lokalizacji.";
+        button.disabled = false;
+      },
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+    );
+  });
+</script>
+</body>
+</html>
